@@ -33,14 +33,32 @@ def train(
         log_level: int,
         log_path: Optional[str],
         **kwargs
-):
+) -> None:
+    """Training model.
+
+    Parameters
+    ----------
+    INPUT : str
+        The input parameter file in json or yaml format
+    init_model : Optional[str]
+        Initialize the model by the provided checkpoint.
+    restart : Optional[str]
+        Restart the training from the provided checkpoint.
+    output : str
+        The output files in training.
+    log_level : int, default=logging.INFO
+        Logging level.
+    log_path : Optional[str], default=None
+        Path to log file.
+    **kwargs
+        Additional keyword arguments (unused in this implementation).
+    """
     run_opt = {
         "init_model": init_model,
         "restart": restart,
         "log_path": log_path,
         "log_level": log_level
     }
-
 
     '''
         -1- set up input and output directories
@@ -59,13 +77,6 @@ def train(
     '''
     # init all paths
     # if init_model, restart or init_frez, findout the input configure file
-
-    # setup INPUT path
-
-    if all((run_opt["init_model"], restart)):
-        raise RuntimeError(
-            "--init-model and --restart should not be set at the same time"
-        )
     
     # setup output path
     if output:

@@ -13,10 +13,43 @@ log = logging.getLogger(__name__)
 #TODO: 对于loss 和 data option 的检查还没有完整
 
 def check_config_train(
-        INPUT,
+        INPUT: str,
         init_model: Optional[str],
         restart: Optional[str],
-        **kwargs):
+        **kwargs) -> None:
+    """Check the input configuration file to run specific commands.
+
+    Parameters
+    ----------
+    INPUT : str
+        The input parameter file in json or yaml format
+    init_model : Optional[str]
+        Initialize the model by the provided checkpoint.
+    restart : Optional[str]
+        Restart the training from the provided checkpoint.
+    **kwargs
+        Additional keyword arguments (unused in this implementation).
+
+    Raises
+    ------
+    RuntimeError
+        1) --init-model and --restart should not be set at the same time
+        2) The train data set should not have both get_Hamiltonian and get_eigenvalues set to True.
+    AssertionError
+        1) train data set in data_options is not provided in the input configuration file.
+        2) get_eigenvalues = True but no eigvals given
+        3) get_Hamiltonian = True but no hamil given
+    ValueError
+        1) The prediction method must be sktb for mix mode.
+        2) The embedding method must be se2 for mix mode.
+        3) Model_options are not set correctly!
+           You can only choose one of the mixed, deeptb, and nnsk modes.
+           `mixed`, set all the `nnsk` `embedding` and `prediction` options.
+           `deeptb`, set `embedding` and `prediction` options and no `nnsk`.
+           `nnsk`, set only `nnsk` options.
+        4) The embedding method must be se2 for sktb prediction in deeptb mode.
+        5) The embedding method can not be se2 for e3tb prediction in deeptb mode.
+    """
     
     if all((init_model, restart)):
         raise RuntimeError("--init-model and --restart should not be set at the same time")

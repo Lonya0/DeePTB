@@ -12,7 +12,32 @@ def bond(
         log_level: int,
         log_path: Optional[str],
         **kwargs
-):
+) -> str:
+    """Bond distance analysis.
+
+    Parameters
+    ----------
+    struct : str
+        The structure input by 'bond' subcommand.
+    accuracy : float
+        The accuracy to judge whether two bond are the same. Input by 'bond -acc
+        --accuracy' subcommand. (Default value is settled by main_parser at 1e-3)
+    cutoff : float
+        The cutoff radius of bond search. Input by 'bond -c --cutoff' subcommand.
+        (Default value is settled by main_parser at 6.0)
+    log_level : int, default=logging.INFO
+        Logging level.
+    log_path : Optional[str], default=None
+        Path to log file.
+    **kwargs
+        Additional keyword arguments (unused in this implementation).
+
+    Returns
+    -------
+    str
+        Returns bond str after print it out.
+
+    """
     atom = io.read(struct)
     nb = get_neighbours(atom=atom, cutoff=cutoff, thr=accuracy)
 

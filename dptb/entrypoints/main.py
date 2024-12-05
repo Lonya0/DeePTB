@@ -38,6 +38,13 @@ def get_ll(log_level: str) -> int:
     return int_level
 
 def main_parser() -> argparse.ArgumentParser:
+    """Return parser for 'dptb' command
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        parser for 'dptb' command
+    """
     parser = argparse.ArgumentParser(
         description="DeepTB: A deep learning package for Tight-Binding Model"
                     " with first-principle accuracy.",
@@ -175,7 +182,7 @@ def main_parser() -> argparse.ArgumentParser:
         "--outdir",
         type=str,
         default="./",
-        help="The output files to save the transfered model and updated input."
+        help="The output files to save the transferred model and updated input."
     )
 
     # pth2json
@@ -190,14 +197,14 @@ def main_parser() -> argparse.ArgumentParser:
         "--init-model",
         type=str,
         default=None,
-        help="The pth ckpt to be transfered to json.",
+        help="The pth ckpt to be transferred to json.",
     )
     parser_pth2json.add_argument(
         "-o",
         "--outdir",
         type=str,
         default="./",
-        help="The output files to save the transfered model."
+        help="The output files to save the transferred model."
     )
 
     # train parser
@@ -294,7 +301,7 @@ def main_parser() -> argparse.ArgumentParser:
         "--structure",
         type=str,
         default=None,
-        help="the structure file name wiht its suffix of format, such as, .vasp, .cif etc., prior to the model_ckpt tags in the input json. "
+        help="the structure file name with its suffix of format, such as, .vasp, .cif etc., prior to the model_ckpt tags in the input json. "
     )
 
     parser_run.add_argument(
@@ -390,6 +397,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     return parsed_args
 
 def main():
+    """DeepTB entry point."""
     args = parse_args()
 
     if args.command not in (None, "train", "test", "run"):

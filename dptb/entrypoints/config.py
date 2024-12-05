@@ -76,27 +76,40 @@ def config(
         log_path: Optional[str] = None,
         **kwargs
 ):
+    """This function generates and saves a full configuration based on user input.
+
+    Parameters
+    ----------
+    PATH : str
+        Path to save the configuration file.
+    train : bool, default=True
+        Whether it's training mode.
+    test : bool, default=false
+        Whether it's testing mode.
+    e3tb : bool, default=false
+        Whether E3TB configuration is needed.
+    sktb : bool, default=false
+        Whether SKTB configuration is needed.
+    sktbenv : bool, default=false
+        Whether SKTB environment correction is needed.
+    log_level : int, default=logging.INFO
+        Logging level.
+    log_path : Optional[str], default=None
+        Path to log file.
+    **kwargs
+        Additional keyword arguments (unused in this implementation).
+
+    Returns
+    -------
+    int
+        0 on success, 1 on error.
+
+    Raises
+    ------
+    ValueError
+        If none of the config type flags (e3tb, sktb, sktbenv) are True or
+        if both train and test are True.
     """
-    This function generates and saves a full configuration based on user input.
-
-    Args:
-        PATH (str): Path to save the configuration file.
-        train (bool, optional): Whether it's training mode (default: True).
-        test (bool, optional): Whether it's testing mode (default: False).
-        e3tb (bool, optional): Whether E3TB configuration is needed.
-        sktb (bool, optional): Whether SKTB configuration is needed.
-        sktbenv (bool, optional): Whether SKTB environment correction is needed.
-        log_level (int, optional): Logging level (default: logging.INFO).
-        log_path (Optional[str], optional): Path to log file (default: None).
-        **kwargs: Additional keyword arguments (unused in this implementation).
-
-    Returns:
-        int: 0 on success, 1 on error.
-
-    Raises:
-        ValueError: If none of the config type flags (e3tb, sktb, sktbenv) are True or
-                    if both train and test are True.
-  """
     if not any((e3tb, sktb, sktbenv)):
         logging.error("Please specify the type of config you want to generate.")
         raise ValueError("Please specify the type of config you want to generate.")

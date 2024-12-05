@@ -818,7 +818,17 @@ def loss_options():
     return Argument("loss_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_loss_options)
 
 
-def normalize(data):
+def normalize(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+
+    Parameters
+    ----------
+    data:
+
+    Returns
+    -------
+
+    """
 
     co = common_options()
     tr = train_options()

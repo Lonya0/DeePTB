@@ -1,7 +1,7 @@
 """
-Class to holde a bunch of hyperparameters associate with either training or a model.
+Class to hold a bunch of hyperparameters associate with either training or a model.
 
-The interface is inteneded to be as close to the wandb.config class as possible. But it does not have any locked
+The interface is intended to be as close to the wandb.config class as possible. But it does not have any locked
 entries as in wandb.config
 
 Examples:
@@ -185,7 +185,7 @@ class Config(object):
         """Mock of wandb.config function
 
         Add a dictionary of parameters to the
-        The key of the parameter cannot be started as "_"
+        key of the parameter cannot be started as "_"
 
         Args:
 

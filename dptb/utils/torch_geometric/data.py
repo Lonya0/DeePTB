@@ -40,21 +40,22 @@ class Data(object):
     r"""A plain old python object modeling a single graph with various
     (optional) attributes:
 
-    Args:
-        x (Tensor, optional): Node feature matrix with shape :obj:`[num_nodes,
-            num_node_features]`. (default: :obj:`None`)
-        edge_index (LongTensor, optional): Graph connectivity in COO format
-            with shape :obj:`[2, num_edges]`. (default: :obj:`None`)
-        edge_attr (Tensor, optional): Edge feature matrix with shape
-            :obj:`[num_edges, num_edge_features]`. (default: :obj:`None`)
-        y (Tensor, optional): Graph or node targets with arbitrary shape.
-            (default: :obj:`None`)
-        pos (Tensor, optional): Node position matrix with shape
-            :obj:`[num_nodes, num_dimensions]`. (default: :obj:`None`)
-        normal (Tensor, optional): Normal vector matrix with shape
-            :obj:`[num_nodes, num_dimensions]`. (default: :obj:`None`)
-        face (LongTensor, optional): Face adjacency matrix with shape
-            :obj:`[3, num_faces]`. (default: :obj:`None`)
+    Properties
+    ----------
+    x: Tensor, optional
+        Node feature matrix with shape ``[num_nodes, num_node_features]``. (default: ``None``)
+    edge_index: LongTensor, optional
+        Graph connectivity in COO format with shape ``[2, num_edges]``. (default: ``None``)
+    edge_attr: Tensor, optional
+        Edge feature matrix with shape ``[num_edges, num_edge_features]``. (default: ``None``)
+    y: Tensor, optional
+        Graph or node targets with arbitrary shape. (default: ``None``)
+    pos: Tensor, optional
+        Node position matrix with shape ``[num_nodes, num_dimensions]``. (default: ``None``)
+    normal: Tensor, optional
+        Normal vector matrix with shape ``[num_nodes, num_dimensions]``. (default: ``None``)
+    face: LongTensor, optional
+        Face adjacency matrix with shape ``[3, num_faces]``. (default: ``None``)
 
     The data object is not restricted to these attributes and can be extented
     by any other additional data.

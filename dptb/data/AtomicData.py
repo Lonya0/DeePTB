@@ -307,38 +307,71 @@ def _process_dict(kwargs, ignore_fields=[]):
 
 
 class AtomicData(Data):
-    """A neighbor graph for points in (periodic triclinic) real space.
+    """A neighbor graph for points in (periodic tri-clinic) real space.
 
     For typical cases either ``from_points`` or ``from_ase`` should be used to
     construct a AtomicData; they also standardize and check their input much more
     thoroughly.
 
-    In general, ``node_features`` are features or input information on the nodes that will be fed through and transformed by the network, while ``node_attrs`` are _encodings_ fixed, inherant attributes of the atoms themselves that remain constant through the network.
-    For example, a one-hot _encoding_ of atomic species is a node attribute, while some observed instantaneous property of that atom (current partial charge, for example), would be a feature.
+    In general, ``node_features`` are features or input information on the nodes that will be fed through and
+    transformed by the network, while ``node_attrs`` are _encodings_ fixed, inherent attributes of the atoms themselves
+    that remain constant through the network.
+    For example, a one-hot _encoding_ of atomic species is a node attribute, while some observed instantaneous property
+    of that atom (current partial charge, for example), would be a feature.
 
-    In general, ``torch.Tensor`` arguments should be of consistant dtype. Numpy arrays will be converted to ``torch.Tensor``s; those of floating point dtype will be converted to ``torch.get_current_dtype()`` regardless of their original precision. Scalar values (Python scalars or ``torch.Tensor``s of shape ``()``) a resized to tensors of shape ``[1]``. Per-atom scalar values should be given with shape ``[N_at, 1]``.
+    In general, ``torch.Tensor`` arguments should be of consistent dtype. Numpy arrays will be converted to
+    ``torch.Tensor`` s; those of floating point dtype will be converted to ``torch.get_current_dtype()`` regardless of
+    their original precision. Scalar values (Python scalars or ``torch.Tensor`` s of shape ``()``) a resized to tensors
+    of shape ``[1]``. Per-atom scalar values should be given with shape ``[N_at, 1]``.
 
-    ``AtomicData`` should be used for all data creation and manipulation outside of the model; inside of the model ``AtomicDataDict.Type`` is used.
+    ``AtomicData`` should be used for all data creation and manipulation outside the model; inside the model
+    ``AtomicDataDict.Type`` is used.
 
-    Args:
-        pos (Tensor [n_nodes, 3]): Positions of the nodes.
-        edge_index (LongTensor [2, n_edges]): ``edge_index[0]`` is the per-edge
-            index of the source node and ``edge_index[1]`` is the target node.
-        edge_cell_shift (Tensor [n_edges, 3], optional): which periodic image
-            of the target point each edge goes to, relative to the source point.
-        cell (Tensor [1, 3, 3], optional): the periodic cell for
-            ``edge_cell_shift`` as the three triclinic cell vectors.
-        node_features (Tensor [n_atom, ...]): the input features of the nodes, optional
-        node_attrs (Tensor [n_atom, ...]): the attributes of the nodes, for instance the atom type, optional
-        batch (Tensor [n_atom]): the graph to which the node belongs, optional
-        atomic_numbers (Tensor [n_atom]): optional.
-        atom_type (Tensor [n_atom]): optional.
-        **kwargs: other data, optional.
+    Properties
+    ----------
+    pos: Tensor [n_nodes, 3]
+        Positions of the nodes.
+    edge_index: LongTensor [2, n_edges], optional
+        ``edge_index[0]`` is the per-edge index of the source node and ``edge_index[1]`` is the target node.
+    edge_cell_shift: Tensor [n_edges, 3]
+        which periodic image of the target point each edge goes to, relative to the source point.
+    cell: Tensor [1, 3, 3], optional
+        the periodic cell for ``edge_cell_shift`` as the three triclinic cell vectors.
+    node_features: Tensor [n_atom, ...], optional
+        the input features of the nodes
+    node_attrs: Tensor [n_atom, ...], optional
+        the attributes of the nodes, for instance the atom type
+    batch: Tensor [n_atom], optional
+        the graph to which the node belongs
+    atomic_numbers: Tensor [n_atom], optional.
+        atomic numbers.
+    atom_type: Tensor [n_atom], optional.
+        atom type.
+    **kwargs: optional
+        other data
     """
 
     def __init__(
         self, irreps: Dict[str, e3nn.o3.Irreps] = {}, _validate: bool = True, **kwargs
     ):
+        """Initialize AtomicData, check and storage atom data.
+
+        Parameters
+        ----------
+        irreps: Dict[str, e3nn.o3.Irreps]
+            irreps to every str, for symmetry.
+        _validate: bool, default=True
+            Whether to validate the format and type of the input data.
+            NOTE: all property in this __init__() method is stored only if _validate == True,
+            in another word, _validate == False will result an empty object.
+        **kwargs:
+            Data fields, such as pos, edge_index, and cell.
+
+        Raises
+        ------
+        AssertionError
+            If the data shape or type does not meet the requirements.
+        """
 
         # empty init needed by get_example
         if len(kwargs) == 0 and len(irreps) == 0:
@@ -405,19 +438,27 @@ class AtomicData(Data):
     ):
         """Build neighbor graph from points, optionally with PBC.
 
-        Args:
-            pos (np.ndarray/torch.Tensor shape [N, 3]): node positions. If Tensor, must be on the CPU.
-            r_max (float): neighbor cutoff radius.
-            cell (ase.Cell/ndarray [3,3], optional): periodic cell for the points. Defaults to ``None``.
-            pbc (bool or 3-tuple of bool, optional): whether to apply periodic boundary conditions to all or each of
+        Parameters
+        ----------
+        pos: np.ndarray/torch.Tensor (shape==[N, 3])
+            node positions. If Tensor, must be on the CPU.
+        r_max: float
+            neighbor cutoff radius.
+        cell: ase.Cell/ndarray [3,3], optional
+            periodic cell for the points. Defaults to ``None``.
+        pbc: bool or 3-tuple of bool, optional
+            whether to apply periodic boundary conditions to all or each of
             the three cell vector directions. Defaults to ``False``.
-            self_interaction (bool, optional): whether to include self edges for points. Defaults to ``False``. Note
+        self_interaction: bool, optional
+            whether to include self edges for points. Defaults to ``False``. Note
             that edges between the same atom in different periodic images are still included. (See
             ``strict_self_interaction`` to control this behaviour.)
-            strict_self_interaction (bool): Whether to include *any* self interaction edges in the graph, even if the
+        strict_self_interaction: bool
+            Whether to include *any* self interaction edges in the graph, even if the
             two instances of the atom are in different periodic images. Defaults to True, should be True for most
             applications.
-            **kwargs (optional): other fields to add. Keys listed in ``AtomicDataDict.*_KEY` will be treated specially.
+        **kwargs: optional
+            other fields to add. Keys listed in ``AtomicDataDict.*_KEY` will be treated specially.
         """
         if pos is None or r_max is None:
             raise ValueError("pos and r_max must be given.")
@@ -425,7 +466,7 @@ class AtomicData(Data):
         if pbc is None:
             if cell is not None:
                 raise ValueError(
-                    "A cell was provided, but pbc weren't. Please explicitly probide PBC."
+                    "A cell was provided, but pbc weren't. Please explicitly provide PBC."
                 )
             # there are no PBC if cell and pbc are not provided
             pbc = False

@@ -145,7 +145,7 @@ def get_optimizer(type: str, model_param, lr: float, **options: dict):
     elif type == 'LBFGS':
         optimizer = optim.LBFGS(params=model_param, lr=lr, **options)
     else:
-        raise RuntimeError("Optimizer should be Adam/SGD/RMSprop, not {}".format(type))
+        raise RuntimeError("Optimizer should be Adam/SGD/RMSprop/LBFGS, not {}".format(type))
     return optimizer
 
 def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):
@@ -158,19 +158,19 @@ def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):
     elif type == "cyclic":
         scheduler = optim.lr_scheduler.CyclicLR(optimizer=optimizer, **sch_options)
     else:
-        raise RuntimeError("Scheduler should be exp/linear/rop/cyclic..., not {}".format(type))
+        raise RuntimeError("Scheduler should be exp/linear/rop/cyclic, not {}".format(type))
 
     return scheduler
 
 def j_must_have(
     jdata: Dict[str, "_DICT_VAL"], key: str, deprecated_key: List[str] = []
 ) -> "_DICT_VAL":
-    """Assert that supplied dictionary conaines specified key.
+    """Assert that supplied dictionary contains specified key.
 
     Returns
     -------
     _DICT_VAL
-        value that was store unde supplied key
+        value that was store under supplied key
 
     Raises
     ------

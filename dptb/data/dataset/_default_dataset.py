@@ -26,31 +26,54 @@ import logging
 log = logging.getLogger(__name__)
 
 class _TrajData(object):
-    '''
-    Input files format in a trajectory (shape):
-    "info.json": optional, includes infomation in the data files.
-                 can be provided in the base (upper level) folder, or assign in each trajectory.
-    "cell.dat": fixed cell (3, 3) or variable cells (nframes, 3, 3). Unit: Angstrom
-    "atomic_numbers.dat": (natoms) or (nframes, natoms)
-    "positions.dat": concentrate all positions in one file, (nframes * natoms, 3). Can be cart or frac.
-
-    Optional data files:
-    "eigenvalues.npy": concentrate all engenvalues in one file, (nframes, nkpoints, nbands)
-    "kpoints.npy": MUST be provided when loading `eigenvalues.npy`, (nkpoints, 3) or (nframes, nkpints, 3)
-    "hamiltonians.h5": h5 file storing atom-wise hamiltonian blocks labeled by frames id and `i0_jR_Rx_Ry_Rz`.
-    "overlaps.h5": the same format of overlap blocks as `hamiltonians.h5`
-    '''
-    
     def __init__(self, 
-                 root: str, 
-                 data ={},
+                 root: str,
+                 data = {},
                  get_Hamiltonian = False,
                  get_overlap = False,
                  get_DM = False,
                  get_eigenvalues = False,
                  info = None):
-        
-        assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
+        """A class contains trajectory data and functions to convey text file or ase traj file into _TrajData.
+
+        Input files format in a trajectory (shape):
+        "info.json": optional, includes infomation in the data files.
+                     can be provided in the base (upper level) folder, or assign in each trajectory.
+        "cell.dat": fixed cell (3, 3) or variable cells (nframes, 3, 3). Unit: Angstrom
+        "atomic_numbers.dat": (natoms) or (nframes, natoms)
+        "positions.dat": concentrate all positions in one file, (nframes * natoms, 3). Can be cart or frac.
+
+        Optional data files:
+        "eigenvalues.npy": concentrate all engenvalues in one file, (nframes, nkpoints, nbands)
+        "kpoints.npy": MUST be provided when loading `eigenvalues.npy`, (nkpoints, 3) or (nframes, nkpints, 3)
+        "hamiltonians.h5": h5 file storing atom-wise hamiltonian blocks labeled by frames id and `i0_jR_Rx_Ry_Rz`.
+        "overlaps.h5": the same format of overlap blocks as `hamiltonians.h5`
+
+        Notes
+        -----
+        `__init__()` method is only used by `_TrajData.from_ase_traj()` and `_TrajData.from_text_data()`,
+        as input parameter `data` is only passed in by them.
+
+        Parameters
+        ----------
+        root
+            The path of files.
+        data
+            The data is pass in by function `from_ase_traj()` or `from_text_data()` which convey different types of file.
+        get_Hamiltonian
+            If Hamiltonian is loaded, pass in by other Classmethod.
+        get_overlap
+            If overlap matrix is loaded, pass in by other Classmethod.
+        get_DM
+            If Density Matrix is loaded, pass in by other Classmethod.
+        get_eigenvalues
+            If eigenvalues is loaded, pass in by other Classmethod.
+        info
+            From the `info.json` file when building dataset.
+        """
+
+        assert not get_Hamiltonian * get_DM, ("Hamiltonian and Density Matrix can only loaded one at a time, for which"
+                                              "will occupy the same attribute in the AtomicData.")
         self.root = root
         self.info = info
         self.data = data
@@ -90,7 +113,8 @@ class _TrajData(object):
             assert os.path.exists(os.path.join(self.root, "overlaps.h5")), "Overlap file not found."
             self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
         if get_DM==True:
-            assert os.path.exists(os.path.join(self.root, "density_matrices.h5")) or os.path.exists(os.path.join(self.root, "DM.h5")), "Density Matrix file not found."
+            assert (os.path.exists(os.path.join(self.root, "density_matrices.h5")) or
+                    os.path.exists(os.path.join(self.root, "DM.h5"))), "Density Matrix file not found."
             if os.path.exists(os.path.join(self.root, "density_matrices.h5")):
                 self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "density_matrices.h5"), "r")
             else:
@@ -173,7 +197,8 @@ class _TrajData(object):
                       get_eigenvalues = False,
                       info = None):
         
-        assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
+        assert not get_Hamiltonian * get_DM, ("Hamiltonian and Density Matrix can only loaded one at a time, for which"
+                                              "will occupy the same attribute in the AtomicData.")
 
         traj_file = glob.glob(f"{root}/*.traj")
         assert len(traj_file) == 1, print("only one ase trajectory file can be provided.")
@@ -251,8 +276,11 @@ class _TrajData(object):
             if AtomicDataDict.ENERGY_EIGENVALUE_KEY in self.data and AtomicDataDict.KPOINT_KEY in self.data:
                 assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
                 bandinfo = self.info["bandinfo"]
-                kwargs[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(self.data[AtomicDataDict.KPOINT_KEY][frame], dtype=torch.get_default_dtype())
-                kwargs[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][frame], dtype=torch.get_default_dtype())
+                kwargs[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(self.data[AtomicDataDict.KPOINT_KEY][frame],
+                                                                    dtype=torch.get_default_dtype())
+                kwargs[AtomicDataDict.ENERGY_EIGENVALUE_KEY] =(
+                    torch.as_tensor(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][frame],
+                                    dtype=torch.get_default_dtype()))
                 if bandinfo["emin"] is not None and bandinfo["emax"] is not None:
                     kwargs[AtomicDataDict.ENERGY_WINDOWS_KEY] = torch.as_tensor([bandinfo["emin"], bandinfo["emax"]], 
                                                                                      dtype=torch.get_default_dtype())
@@ -294,7 +322,7 @@ class _TrajData(object):
                 block_to_feature(atomic_data, idp, features, overlaps)
             
             if not hasattr(atomic_data, AtomicDataDict.EDGE_FEATURES_KEY):
-                # TODO: initialize the edge and node feature tempretely, there should be a better way.
+                # TODO: initialize the edge and node feature temperately, there should be a better way.
                 atomic_data[AtomicDataDict.EDGE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
                 atomic_data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
                 # just temporarily initialize the edge and node feature to zeros, to let the batch collate work.
@@ -322,7 +350,7 @@ class DefaultDataset(AtomicInMemoryDataset):
             self,
             root: str,
             info_files: Dict[str, Dict],
-            url: Optional[str] = None,                    # seems useless but can't be remove
+            url: Optional[str] = None,                    # seems useless but can't be removed
             include_frames: Optional[List[int]] = None,   # maybe support in future
             type_mapper: TypeMapper = None,
             get_Hamiltonian: bool = False,
@@ -395,7 +423,26 @@ class DefaultDataset(AtomicInMemoryDataset):
         # TODO: this is not implemented.
         return self.root
     
-    def E3statistics(self, model: torch.nn.Module=None, decay=False):
+    def E3statistics(self, model: torch.nn.Module=None, decay=False) -> dict:
+        """Reading model statistics data and initialize the model parameters with it.
+
+        Parameters
+        ----------
+        model : torch.nn.Module, default=None
+            The model to be imported.
+        decay : bool, default = False
+            Determine whether to generate decayed edge statistic.
+
+        Returns
+        -------
+        dict
+            Statistics about model nodes.
+
+        Raises
+        ------
+        AssertionError
+            if Dataset not contain 'transform' parameter.
+        """
         assert self.transform is not None
         idp = self.transform
 
@@ -412,7 +459,7 @@ class DefaultDataset(AtomicInMemoryDataset):
         stats["edge"] = self._E3edgespecies_stat(typed_dataset=typed_dataset, decay=decay)
 
         if model is not None:
-            # initilize the model param with statistics
+            # initialize the model param with statistics
             scalar_mask = torch.BoolTensor([ir.dim==1 for ir in model.idp.orbpair_irreps])
             node_shifts = stats["node"]["scalar_ave"]
             node_scales = stats["node"]["norm_ave"]

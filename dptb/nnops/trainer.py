@@ -77,9 +77,9 @@ class Trainer(BaseTrainer):
             self.model.transform = False
 
     def iteration(self, batch, ref_batch=None):
-        '''
+        """
         conduct one step forward computation, used in train, test and validation.
-        '''
+        """
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
         batch = batch.to(self.device)
@@ -99,8 +99,8 @@ class Trainer(BaseTrainer):
         
         batch = self.model(batch)
 
-        #TODO: this could make the loss function unjitable since t he batchinfo in batch and batch_for_loss does not necessarily 
-        #       match the torch.Tensor requiresment, should be improved further
+        #TODO: this could make the loss function unjitable since the batch info in batch and batch_for_loss does not necessarily
+        #       match the torch.Tensor requirement, should be improved further
 
         batch.update(batch_info)
         batch_for_loss.update(batch_info)
@@ -188,7 +188,7 @@ class Trainer(BaseTrainer):
                 item.load_state_dict(ckpt[key+"_state_dict"])
 
         return trainer
-# 
+
 
     def epoch(self) -> None:
 

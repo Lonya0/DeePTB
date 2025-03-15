@@ -46,8 +46,8 @@ class SO2_Linear(torch.nn.Module):
     """
     def __init__(
         self,
-        irreps_in,
-        irreps_out,
+        irreps_in: Irreps,
+        irreps_out: Irreps,
         radial_emb: bool = False,
         latent_dim: int = None,
         radial_channels: list = None,
@@ -162,8 +162,8 @@ class SO2_m_Linear(torch.nn.Module):
     def __init__(
         self,
         m,
-        irreps_in,
-        irreps_out,
+        irreps_in: Irreps,
+        irreps_out: Irreps,
     ):
         super(SO2_m_Linear, self).__init__()
         

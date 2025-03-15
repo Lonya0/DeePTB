@@ -8,6 +8,7 @@ import math
 from typing import Tuple, Dict, Any, List, Callable, Union, Optional
 
 import torch
+from networkx.classes import neighbors
 
 from torch_runstats.scatter import scatter_std, scatter_mean
 
@@ -51,10 +52,12 @@ class AtomicDataset(Dataset):
         unbiased: bool = True,
         kwargs: Optional[Dict[str, dict]] = {},
     ) -> List[tuple]:
-        # TODO: If needed, this can eventually be implimented for general AtomicDataset by computing an online running mean and using Welford's method for a stable running standard deviation: https://jonisalonen.com/2013/deriving-welfords-method-for-computing-variance/
+        # TODO: If needed, this can eventually be implemented for general AtomicDataset by computing an online running
+        #  mean and using Welford's method for a stable running standard deviation:
+        #  https://jonisalonen.com/2013/deriving-welfords-method-for-computing-variance/
         # That would be needed if we have lazy loading datasets.
-        # TODO: When lazy-loading datasets are implimented, how to deal with statistics, sampling, and subsets?
-        raise NotImplementedError("not implimented for general AtomicDataset yet")
+        # TODO: When lazy-loading datasets are implemented, how to deal with statistics, sampling, and subsets?
+        raise NotImplementedError("not implemented for general AtomicDataset yet")
 
     @property
     def type_mapper(self) -> Optional[TypeMapper]:
@@ -69,7 +72,7 @@ class AtomicDataset(Dataset):
         IGNORE_KEYS = {
             # the type mapper is applied after saving, not before, so doesn't matter to cache validity
             "type_mapper",
-            # the root path of the dictionary is not important, as datasets can be transfered to anywhere
+            # the root path of the dictionary is not important, as datasets can be transferred to anywhere
             "root"
         }
         params = {
@@ -112,13 +115,20 @@ class AtomicInMemoryDataset(AtomicDataset):
     Subclasses may implement:
      - ``download()`` or ``self.url`` or ``ClassName.URL``
 
-    Args:
-        root (str, optional): Root directory where the dataset should be saved. Defaults to current working directory.
-        file_name (str, optional): file name of data source. only used in children class
-        url (str, optional): url to download data source
-        AtomicData_options (dict, optional): extra key that are not stored in data but needed for AtomicData initialization
-        include_frames (list, optional): the frames to process with the constructor.
-        type_mapper (TypeMapper): the transformation to map atomic information to species index. Optional
+    Parameters
+    ----------
+    root: str
+        Root directory where the dataset should be saved. Defaults to current working directory.
+    file_name: str, optional
+        file name of data source. only used in children class
+    url: str, optional
+        url to download data source
+    AtomicData_options: dict, optional
+        extra key that are not stored in data but needed for AtomicData initialization
+    include_frames: list, optional
+        the frames to process with the constructor.
+    type_mapper: TypeMapper, optional
+        the transformation to map atomic information to species index.
     """
 
     def __init__(
@@ -130,6 +140,28 @@ class AtomicInMemoryDataset(AtomicDataset):
         include_frames: Optional[List[int]] = None,
         type_mapper: Optional[TypeMapper] = None,
     ):
+        """Used to initialize a data set that reads data into memory.
+
+        Logic
+         - Read file name, address, selected frame, read Settings
+         - Redefine the subset download and process properties to the class attributes of the same name
+         - Read data into memory when it is not read into memory
+
+        Parameters
+        ----------
+        root: str
+            Root directory where the dataset should be saved. Defaults to current working directory.
+        file_name: str, optional
+            file name of data source. only used in children class
+        url: str, optional
+            url to download data source
+        AtomicData_options: dict, optional
+            extra key that are not stored in data but needed for AtomicData initialization
+        include_frames: list, optional
+            the frames to process with the constructor.
+        type_mapper: TypeMapper, optional
+            the transformation to map atomic information to species index.
+        """
         # TO DO, this may be simplified
         # See if a subclass defines some inputs
         self.file_name = (

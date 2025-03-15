@@ -52,6 +52,12 @@ def train(
         Path to log file.
     **kwargs
         Additional keyword arguments (unused in this implementation).
+
+    Raises
+    ------
+    AssertionError
+        1) one cannot choose restart mode but input a json file to restart.
+        2) If init model or restart has input a model, the basis and orb in model should match which in option.
     """
     run_opt = {
         "init_model": init_model,
@@ -171,7 +177,7 @@ def train(
         j_must_have(jdata, "model_options")
         j_must_have(jdata, "train_options")
 
-    cutoff_options =collect_cutoffs(jdata)
+    cutoff_options = collect_cutoffs(jdata)
     # setup seed
     setup_seed(seed=jdata["common_options"]["seed"])
 
@@ -179,7 +185,7 @@ def train(
     #     json.dump(jdata, fp, indent=4)
 
     # build dataset
-    train_datasets = build_dataset(**cutoff_options,**jdata["data_options"]["train"], **jdata["common_options"])
+    train_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["train"], **jdata["common_options"])
     if jdata["data_options"].get("validation"):
         validation_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["validation"], **jdata["common_options"])
     else:
@@ -249,23 +255,27 @@ def train(
     log.info(f"wall time: {(end_time - start_time):.3f} s")
 
 
-def deep_dict_difference(base_key, expected_value, model_options):
-    """
-    递归地记录嵌套字典中的选项差异。
-    
-    :param base_key: 基础键名，用于构建警告消息的前缀。
-    :param expected_value: 期望的值，可能是字典或非字典类型。
-    :param model_options: 用于比较的模型选项字典。
+def deep_dict_difference(base_key, expected_value, model_options) -> None:
+    """Recursively records option differences in a nested dictionary.
+
+    Parameters
+    ----------
+    base_key
+        Base key name, which is used to build the prefix of the warning message.
+    expected_value
+        Expect values, which may be of dictionary or non-dictionary type.
+    model_options
+        A dictionary of model options for comparison.
     """
     target_dict= copy.deepcopy(model_options) # 防止修改原始字典
     if isinstance(expected_value, dict):
         for subk, subv in expected_value.items():
             
             if  not isinstance(target_dict.get(base_key, {}),dict):
-                log.warning(f"The model option {subk} in {base_key} is not defined in  checkpoint, set to {subv}.")
+                log.warning(f"The model option {subk} in {base_key} is not defined in checkpoint, set to {subv}.")
             
             elif subk not in target_dict.get(base_key, {}):
-                log.warning(f"The model option {subk} in {base_key} is not defined in  checkpoint, set to {subv}.")
+                log.warning(f"The model option {subk} in {base_key} is not defined in checkpoint, set to {subv}.")
             else:
                 target2 = copy.deepcopy(target_dict[base_key])
                 deep_dict_difference(f"{subk}", subv, target2)

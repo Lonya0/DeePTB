@@ -18,51 +18,54 @@ IndexType = Union[slice, Tensor, np.ndarray, Sequence]
 
 class Dataset(torch.utils.data.Dataset):
     r"""Dataset base class for creating graph datasets.
-    See `here <https://pytorch-geometric.readthedocs.io/en/latest/notes/
-    create_dataset.html>`__ for the accompanying tutorial.
+    See `here <https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html>`__
+    for the accompanying tutorial.
 
-    Args:
-        root (string, optional): Root directory where the dataset should be
-            saved. (optional: :obj:`None`)
-        transform (callable, optional): A function/transform that takes in an
-            :obj:`torch_geometric.data.Data` object and returns a transformed
-            version. The data object will be transformed before every access.
-            (default: :obj:`None`)
-        pre_transform (callable, optional): A function/transform that takes in
-            an :obj:`torch_geometric.data.Data` object and returns a
-            transformed version. The data object will be transformed before
-            being saved to disk. (default: :obj:`None`)
-        pre_filter (callable, optional): A function that takes in an
-            :obj:`torch_geometric.data.Data` object and returns a boolean
-            value, indicating whether the data object should be included in the
-            final dataset. (default: :obj:`None`)
+    Properties
+    ----------
+    root : string, default=None
+        Root directory where the dataset should be saved.
+    transform : callable, default=None
+        A function/transform that takes in an ``torch_geometric.data.Data`` object and returns a transformed version.
+        The data object will be transformed before every access.
+    pre_transform : callable, default=None
+        A function/transform that takes in an ``torch_geometric.data.Data`` object and returns a transformed version.
+        The data object will be transformed before being saved to disk.
+    pre_filter : callable, default=None
+        A function that takes in an ``torch_geometric.data.Data`` object and returns a boolean value,
+        indicating whether the data object should be included in the final dataset.
+    _indices : Sequence, default=None
+        Index of child Dataset.
+
+
+
     """
 
     @property
     def raw_file_names(self) -> Union[str, List[str], Tuple]:
-        r"""The name of the files to find in the :obj:`self.raw_dir` folder in
+        r"""The name of the files to find in the ``self.raw_dir`` folder in
         order to skip the download."""
         raise NotImplementedError
 
     @property
     def processed_file_names(self) -> Union[str, List[str], Tuple]:
-        r"""The name of the files to find in the :obj:`self.processed_dir`
+        r"""The name of the files to find in the ``self.processed_dir``
         folder in order to skip the processing."""
         raise NotImplementedError
 
     def download(self):
-        r"""Downloads the dataset to the :obj:`self.raw_dir` folder."""
+        r"""Downloads the dataset to the ``self.raw_dir`` folder."""
         raise NotImplementedError
 
     def process(self):
-        r"""Processes the dataset to the :obj:`self.processed_dir` folder."""
+        r"""Processes the dataset to the ``self.processed_dir`` folder."""
         raise NotImplementedError
 
     def len(self) -> int:
         raise NotImplementedError
 
     def get(self, idx: int) -> Data:
-        r"""Gets the data object at index :obj:`idx`."""
+        r"""Gets the data object at index ``idx``."""
         raise NotImplementedError
 
     def __init__(
@@ -72,6 +75,19 @@ class Dataset(torch.utils.data.Dataset):
         pre_transform: Optional[Callable] = None,
         pre_filter: Optional[Callable] = None,
     ):
+        """The
+
+        Parameters
+        ----------
+        root : str, default=None
+            The root path to the dataset.
+        transform : Callable, default=None
+            transform function.
+        pre_transform : Callable, default=None
+            pre transform function.
+        pre_filter : Callable, default=None
+            pre-filter function.
+        """
         super().__init__()
 
         if isinstance(root, str):

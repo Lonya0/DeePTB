@@ -1,6 +1,8 @@
 import torch
 import heapq
 import logging
+
+from dptb.data import AtomicDataset
 from dptb.utils.tools import get_lr_scheduler, j_must_have, get_optimizer
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
@@ -38,7 +40,15 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
         self.update_lr_per_step_flag = False
 
     @abstractmethod
-    def restart(self, checkpoint):
+    def restart(
+        cls,
+        checkpoint: str,
+        train_datasets: AtomicDataset,
+        train_options: dict={},
+        common_options: dict={},
+        reference_datasets: Optional[AtomicDataset]=None,
+        validation_datasets: Optional[AtomicDataset]=None,
+        ):
         """init trainer from disk
         """
         pass
@@ -65,9 +75,9 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
 
     @abstractmethod
     def iteration(self, **data):
-        '''
+        """
         conduct one step forward computation, used in train, test and validation.
-        '''
+        """
         pass
 
     @abstractmethod

@@ -14,7 +14,29 @@ from dptb.data import AtomicData, AtomicDataDict
 
 
 class TypeMapper:
-    """Based on a configuration, map atomic numbers to types."""
+    """Based on a configuration, map atomic numbers to types.
+
+    Properties
+    ----------
+    num_types (int):
+        Number of atomic types, generated.
+    chemical_symbol_to_type (Optional[Dict[str, int]]):
+        化学符号 -> 类型索引的映射字典
+    type_to_chemical_symbol (Optional[Dict[int, str]]):
+        类型索引 -> 化学符号的映射字典
+    type_names (List[str]):
+        按原子序数排序的类型名称列表（通常为化学符号）
+    _min_Z (int):
+        支持的最小原子序数（内部使用）
+    _max_Z (int):
+        支持的最大原子序数（内部使用）
+    _Z_to_index (torch.Tensor):
+        原子序数到类型索引的快速查询张量
+    _index_to_Z (torch.Tensor):
+        类型索引到原子序数的反向查询张量
+    _valid_set (set):
+        有效原子序数的集合（用于校验）
+    """
 
     num_types: int
     chemical_symbol_to_type: Optional[Dict[str, int]]
@@ -26,10 +48,47 @@ class TypeMapper:
         self,
         type_names: Optional[List[str]] = None,
         chemical_symbol_to_type: Optional[Dict[str, int]] = None,
-        type_to_chemical_symbol: Optional[Dict[int, str]] = None,
         chemical_symbols: Optional[List[str]] = None,
+        type_to_chemical_symbol: Optional[Dict[int, str]] = None,
         device=torch.device("cpu"),
     ):
+        """Using type_names, chemical_symbol_to_type OR chemical_symbols to construct a TypeMapper,
+        One of three must be provided, if more than one is provided, will check if each other is correct.
+
+        The initialization method is mainly its processing of various inputs, and finally produces the list class
+        ``type_names``, which will check each other if too many inputs are entered.
+        The ``chemical_symbols`` is used first and converted to ``chemical_symbol_to_type``, during which it checks
+        whether both items are entered, and if so, an error is risen.
+        With either of the first two, a quick lookup tensor ``Z_to_index`` at device is generated and the atomic weight
+        is reduced to the index value.
+        If neither of the first two is present, ``type_names`` must be present, otherwise an error is risen.
+        If only ``type_names`` , no mapping matrix is generated.
+        If ``type_to_chemical_symbol`` is added, the reverse quick lookup tensor ``index_to_Z`` is generated.
+
+        Parameters
+        ----------
+        type_names: Optional[List[str]]
+            A list of type names(str), the index of list is same in chemical_symbol_to_type, and is sorted by atomic
+            number. This will be automatically generated, if provided, will check with other parameter(s) for
+            correctness.
+        chemical_symbol_to_type: Optional[Dict[str, int]]
+            A dict from chemical symbol(str) to type index(int),
+        chemical_symbols: Optional[List[str]]
+            A list of type names(str), but can be not sorted.
+        type_to_chemical_symbol: Optional[Dict[int, str]]
+            A dict from type index(int) to chemical symbol(str), will be generated, if provided will check with
+            other parameters for correctness.
+        device: default=torch.device("cpu")
+            This device where to storage Z_to_index tensor.
+
+        Raises
+        ------
+        ValueError
+            1) "Cannot provide both ``chemical_symbols`` and ``chemical_symbol_to_type``"
+            2) None of those are provided.
+        AssertionError
+            1) Given parameter yielded different mapper.
+        """
         self.device = device
         if chemical_symbols is not None:
             if chemical_symbol_to_type is not None:
@@ -120,6 +179,19 @@ class TypeMapper:
     def __call__(
         self, data: Union[AtomicDataDict.Type, AtomicData], types_required: bool = True
     ) -> Union[AtomicDataDict.Type, AtomicData]:
+        """Use transform tensor to transform ATOMIC_NUMBERS to ATOM_TYPE, returning the same type as input.
+
+        Parameters
+        ----------
+        data: Union[AtomicDataDict.Type, AtomicData]
+            The data input to be mapped.
+        types_required: bool, default=True
+            Used to check if ATOM_TYPE_KEY or ATOMIC_NUMBERS_KEY need to be provided at least one.
+
+        Returns
+        -------
+        Union[AtomicDataDict.Type, AtomicData]
+        """
         if AtomicDataDict.ATOM_TYPE_KEY in data:
             if AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
                 warnings.warn(
@@ -141,8 +213,19 @@ class TypeMapper:
         return data
 
     def transform(self, atomic_numbers):
-        """core function to transform an array to specie index list"""
+        """core function to transform an array to specie index list.
+        Transform atomic number Tensor to type index Tensor.
 
+        Parameters
+        ----------
+        atomic_numbers: torch.Tensor
+            atomic numbers Tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            Transformed type index Tensor.
+        """
         if atomic_numbers.min() < self._min_Z or atomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(atomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
@@ -160,32 +243,53 @@ class TypeMapper:
         return types
 
     def untransform(self, atom_types):
-        """Transform atom types back into atomic numbers"""
+        """Transform atom types back into atomic numbers
+        Transform type index Tensor to atomic number Tensor.
+
+        Parameters
+        ----------
+        atom_types: torch.Tensor
+            type index Tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            Transformed atomic number Tensor.
+        """
         return self._index_to_Z[atom_types].to(device=atom_types.device)
 
     @property
     def has_chemical_symbols(self) -> bool:
+        """This property show if chem->type mapping is constructed."""
         return self.chemical_symbol_to_type is not None
 
     @staticmethod
     def format(
         data: list, type_names: List[str], element_formatter: str = ".6f"
     ) -> str:
-        """
-            Formats a list of data elements along with their type names.
+        """Formats a list of data elements along with their type names.
 
-        Parameters:
-            data (list): The data elements to be formatted. This should be a list of numbers.
-            type_names (List[str]): The type names corresponding to the data elements. This should be a list of strings.
-            element_formatter (str, optional): The format in which the data elements should be displayed. Defaults to ".6f".
+        Parameters
+        ----------
+        data: list
+            The data elements to be formatted. This should be a list of numbers.
+        type_names: List[str]
+            The type names corresponding to the data elements. This should be a list of strings.
+        element_formatter: str, optional
+            The format in which the data elements should be displayed. Defaults to ".6f".
 
-        Returns:
-            str: A string representation of the data elements along with their type names.
+        Returns
+        -------
+        str
+            A string representation of the data elements along with their type names.
 
-        Raises:
-            ValueError: If `data` is not None, not 0-dimensional, or not 1-dimensional with length equal to the length of `type_names`.
+        Raises
+        ------
+        ValueError
+            If `data` is not None, not 0-dimensional, or not 1-dimensional with length equal to the length of `type_names`.
         
-        Example:
+        Example
+        -------
             >>> data = [1.123456789, 2.987654321]
             >>> type_names = ['Type1', 'Type2']
             >>> print(TypeMapper.format(data, type_names))
@@ -212,12 +316,49 @@ class TypeMapper:
 
 
 class BondMapper(TypeMapper):
+    """Provide chemical bond mapping.
+
+    New Properties
+    --------------
+    bond_types: List[str]
+        全连接键类型列表（长度 num_types^2），元素格式为 "Asym-Bsym"。
+    reduced_bond_types: List[str]
+        简化键类型列表（长度 num_types*(num_types+1)/2），仅包含i<=j的原子对。
+    bond_to_type: Dict[str, int]
+        全连接键名到类型索引的映射（如 {"H-O":0, "O-H":1}）。
+    type_to_bond: Dict[int, str]
+        全连接类型索引到键名的反向映射。
+    reduced_bond_to_type: Dict[str, int]
+        简化键名到类型索引的映射（如 {"H-O":0}）。
+    type_to_reduced_bond: Dict[int, str]
+        简化类型索引到键名的反向映射。
+    _ZZ_to_index: torch.Tensor
+        原子序数对到全连接键类型的查找表（形状 [Z_range, Z_range]）。
+    _ZZ_to_reduced_index: torch.Tensor
+        原子序数对到简化键类型的查找表。
+    _index_to_ZZ: torch.Tensor
+        全连接类型索引到原子序数对的映射表（形状 [num_bond_types, 2]）。
+    _reduced_index_to_ZZ: torch.Tensor
+        简化类型索引到原子序数对的映射表。
+    """
     def __init__(
             self, 
             chemical_symbols: Optional[List[str]] = None, 
             chemical_symbols_to_type:Union[Dict[str, int], None]=None,
             device=torch.device("cpu"),
             ):
+        """Use chemical_symbols or chemical_symbols_to_type to construct a BondMapper.
+        One of two must be input, and result is same.
+
+        Parameters
+        ----------
+        chemical_symbols: Optional[List[str]] = None
+            A list of type names(str), but can be not sorted.
+        chemical_symbols_to_type: Optional[Dict[str, int]]
+            A dict from chemical symbol(str) to type index(int),
+        device: default=torch.device("cpu")
+            where to storage the mapping tensor.
+        """
         super(BondMapper, self).__init__(chemical_symbol_to_type=chemical_symbols_to_type, chemical_symbols=chemical_symbols, device=device)
 
         self.bond_types = [None] * self.num_types ** 2
@@ -246,11 +387,11 @@ class BondMapper(TypeMapper):
             )
         
 
-        for abond, aidx in self.bond_to_type.items(): # type_names has a ascending order according to atomic number
+        for abond, aidx in self.bond_to_type.items(): # type_names has an ascending order according to atomic number
             asym, bsym = abond.split("-")
             ZZ_to_index[ase.data.atomic_numbers[asym]-self._min_Z, ase.data.atomic_numbers[bsym]-self._min_Z] = aidx
 
-        for abond, aidx in self.reduced_bond_to_type.items(): # type_names has a ascending order according to atomic number        
+        for abond, aidx in self.reduced_bond_to_type.items(): # type_names has an ascending order according to atomic number
             asym, bsym = abond.split("-")
             ZZ_to_reduced_index[ase.data.atomic_numbers[asym]-self._min_Z, ase.data.atomic_numbers[bsym]-self._min_Z] = aidx
         
@@ -275,10 +416,41 @@ class BondMapper(TypeMapper):
 
 
     def transform_atom(self, atomic_numbers):
+        """Directly invoke the transform() method of the parent class.
+
+        Parameters
+        ----------
+        atomic_numbers: torch.Tensor
+            atomic numbers to be transformed
+
+        Returns
+        -------
+        torch.Tensor
+        """
         return self.transform(atomic_numbers)
     
     def transform_bond(self, iatomic_numbers, jatomic_numbers):
-        
+        """Converts the atomic number pair to a full-join bond type index.
+
+        Parameters
+        ----------
+        iatomic_numbers: torch.Tensor
+            the first (starting) atom's atomic number. (shape==[N])
+        jatomic_numbers: torch.Tensor
+            the second (ending) atom's atomic number. (shape==[N])
+
+        Returns
+        -------
+        torch.Tensor
+            returning bond type index. (shape==[N])
+
+        Raises
+        ------
+        ValueError
+            1) If Tensor is not storage on the same device.
+            2) atomic number out of mapping range.
+            3) bond does not exist in mapper.
+        """
         if iatomic_numbers.device != jatomic_numbers.device:
             raise ValueError("iatomic_numbers and jatomic_numbers should be on the same device!")
         
@@ -309,7 +481,28 @@ class BondMapper(TypeMapper):
         return bondtypes
     
     def transform_reduced_bond(self, iatomic_numbers, jatomic_numbers):
-        
+        """Converts the atomic number pair to a reduced bond type index.
+
+        Parameters
+        ----------
+        iatomic_numbers: torch.Tensor
+            the first (starting) atom's atomic number. (shape==[N])
+        jatomic_numbers: torch.Tensor
+            the second (ending) atom's atomic number. (shape==[N])
+
+        Returns
+        -------
+        torch.Tensor
+            returning bond type index. (shape==[N])
+
+        Raises
+        ------
+        ValueError
+            1) If Tensor is not storage on the same device.
+            2) iatomic_numbers[i] should <= jatomic_numbers[i]
+            2) atomic number out of mapping range.
+            3) bond does not exist in mapper.
+        """
         if iatomic_numbers.device != jatomic_numbers.device:
             raise ValueError("iatomic_numbers and jatomic_numbers should be on the same device!")
         
@@ -361,6 +554,24 @@ class BondMapper(TypeMapper):
     def __call__(
             self, data: Union[AtomicDataDict.Type, AtomicData], types_required: bool = True
             ) -> Union[AtomicDataDict.Type, AtomicData]:
+        """Converts the atomic number pair to a full-join bond type index.
+
+        Parameters
+        ----------
+        data: Union[AtomicDataDict.Type, AtomicData]
+            data input, should contain ATOMIC_NUMBERS and EDGE_INDEX
+        types_required: bool, default=True
+            if True and neither ATOMIC_NUMBERS nor EDGE_INDEX provided, then rise error.
+            if False, will accept to not transform.
+
+        Returns
+        -------
+        Union[AtomicDataDict.Type, AtomicData]
+            Converts the atomic number pair to a full-join bond type index.
+
+        Raises
+        ------
+        """
         if AtomicDataDict.EDGE_TYPE_KEY in data:
             if AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
                 warnings.warn(
@@ -393,6 +604,49 @@ class BondMapper(TypeMapper):
     
 
 class OrbitalMapper(BondMapper):
+    """This class is used to map the orbital pair index to the index of the reduced matrix element (or sk integrals
+    when method is sktb).
+
+    New Properties
+    --------------
+    ``basis``: Dict[str, List[str]]
+        存储每个原子类型的轨道基组定义（如{"H": ["1s", "2s"], "O": ["2p"]}）。
+    ``method``: str
+        计算方法，可选"e3tb"（基于不可约表示）或"sktb"（Slater-Koster方法）。
+    Mappings:
+            ``fullbasis_to_basis``, ``basis_to_fullbasis``
+                which function as their names.
+            ``orbpair_maps``
+                the mapping from orbital pairs of full basis to the reduced matrix element (or sk integrals) index.
+            ``orbpairtype_maps``
+                the mapping from the types of orbital pair (e.g. "s-s", "s-p", "p-p") to the reduced matrix element
+                (or sk integrals) index.
+            ``skonsite_maps``
+                the mapping from the orbital to the sk onsite energies index.
+            ``skonsitetype_maps``
+                the mapping from the orbital type (e.g. "s", "p", "d", "f") to the sk onsite energies index.
+            ``orbital_maps``
+                the mapping from the orbital to the index of the corresponding lines/column in hamiltonian blocks.
+            ``orbpair_irreps``
+                the e3nn irreducible representations of the full reduced matrix element edge/node features.
+    Masks:
+            ``mask_to_basis``
+                the mask used to map the (line/column of) hamiltonian of full basis to the (line/column of)
+                block of original basis of each atom.
+            ``mask_to_erme``
+                the mask used to map the hopping block's flattened reduced matrix element (up tri-diagonal
+                block of hamiltonian) of full basis to it of the original basis.
+            ``mask_to_nrme``
+                the mask used to map the onsite block's flattened reduced matrix element (diagonal block of
+                hamiltonian) of full basis to it of the original basis.
+    ``reduced_matrix_element``: int
+        简化矩阵元素/SK积分的总数（根据method计算）。
+    ``n_onsite_Es``: int
+        SK方法中在位能量（onsite energies）的总数（仅限sktb）。
+    ``n_onsite_socLs``: int
+        SK方法中自旋轨道耦合（SOC）的总数（仅限sktb）。
+
+    """
     def __init__(
             self, 
             basis: Dict[str, Union[List[str], str]], 
@@ -401,40 +655,71 @@ class OrbitalMapper(BondMapper):
             device: Union[str, torch.device] = torch.device("cpu")
             ):
         
-        """
-        This class is used to map the orbital pair index to the index of the reduced matrix element (or sk integrals when method is sktb). To construct a reduced matrix element features in each edge/node with equal sizes as well as their mappings, the following steps will be conducted:
+        """This class is used to map the orbital pair index to the index of the reduced matrix element (or sk integrals
+        when method is sktb). To construct a reduced matrix element features in each edge/node with equal sizes as well
+        as their mappings, the following steps will be conducted:
         
-        1. The basis of each atom will be sorted according to their names. For example, The basis ["2s", "1s", "s*", "2p"] of atom A will be sorted as ["s*", "1s", "2s", "2p"].
+        1. The basis of each atom will be sorted according to their names. For example, The basis ["2s", "1s", "s*",
+            "2p"] of atom A will be sorted as ["s*", "1s", "2s", "2p"].
 
-        2. The sorted basis will be transformed into a general basis, dubbed as full_basis. It is the least required set covering all the basis number and types of each atom. The basis will be renamed according to their angular momentum and the order after sorting. Take s orbital as a example, the first s* will be named as "1s", the second s* will be named as "2s", and so on. Same for p, d, f orbitals.
+        2. The sorted basis will be transformed into a general basis, dubbed as full_basis. It is the least required
+            set covering all the basis number and types of each atom. The basis will be renamed according to their
+            angular momentum and the order after sorting. Take s orbital as an example, the first s* will be named as
+            "1s", the second s* will be named as "2s", and so on. Same for p, d, f orbitals.
 
-        Then the mappings and masks used to guide the construction of hamiltonian will be constructed. The mappings includes:
+        Then the mappings and masks used to guide the construction of hamiltonian will be constructed. The mappings
+        include:
         
         Mappings:
-            fullbasis_to_basis, basis_to_fullbasis: which function as their names
-            orbpair_maps: the mapping from orbital pairs of full basis to the reduced matrix element (or sk integrals)  index.
-            orbpairtype_maps: the mapping from the types of orbital pair (e.g. "s-s", "s-p", "p-p") to the reduced matrix element (or sk integrals) index.
+            fullbasis_to_basis, basis_to_fullbasis: which function as their names.
+            orbpair_maps: the mapping from orbital pairs of full basis to the reduced matrix element (or sk integrals)
+                index.
+            orbpairtype_maps: the mapping from the types of orbital pair (e.g. "s-s", "s-p", "p-p") to the reduced
+                matrix element (or sk integrals) index.
             skonsite_maps: the mapping from the orbital to the sk onsite energies index.
-            skonsitetype_maps: the mapping from the orbital type (e.g. "s", "p", "d", "f") to the sk onsite energies index.
-            orbital_maps: the mapping from the orbital to the index of the corresponding lines/column in hamiltonian blocks.
+            skonsitetype_maps: the mapping from the orbital type (e.g. "s", "p", "d", "f") to the sk onsite energies
+                index.
+            orbital_maps: the mapping from the orbital to the index of the corresponding lines/column in hamiltonian
+                blocks.
             orbpair_irreps: the e3nn irreducible representations of the full reduced matrix element edge/node features.
 
         Masks:
-            mask_to_basis: the mask used to map the (line/column of) hamiltonian of full basis to the (line/column of) block of original basis of each atom.
-            mask_to_erme: the mask used to map the hopping block's flattened reduced matrix element (up tri-diagonal block of hamiltonian) of full basis to it of the original basis.
-            mask_to_nrme: the mask used to map the onsite block's flattened reduced matrix element (diagonal block of hamiltonian) of full basis to it of the original basis.
+            mask_to_basis: the mask used to map the (line/column of) hamiltonian of full basis to the (line/column of)
+                block of original basis of each atom.
+            mask_to_erme: the mask used to map the hopping block's flattened reduced matrix element (up tri-diagonal
+                block of hamiltonian) of full basis to it of the original basis.
+            mask_to_nrme: the mask used to map the onsite block's flattened reduced matrix element (diagonal block of
+                hamiltonian) of full basis to it of the original basis.
 
         Parameters
         ----------
-        basis : dict
+        basis: Dict[str, Union[List[str], str]]
             the definition of the basis set, should be like:
             {"A":"2s2p3d1f", "B":"1s2f3d1f"} or
             {"A":["2s", "2p"], "B":["2s", "2p"]}
             when list, "2s" indicate a "s" orbital in the second shell.
             when str, "2s" indicates two s orbitals, 
             "2s2p3d4f" is equivilent to ["1s","2s", "1p", "2p", "1d", "2d", "3d", "1f"]
-
             Note: the list basis can be used for both e3tb and sktb. but the string basis can only be used for e3tb.
+        chemical_symbol_to_type : Optional[Dict[str, int]], optional
+            Chemical symbol to type index mapping, if not provided, automatically generated based on the ``basis`` key.
+        method : str, default="e3tb"
+            Calculation method, optionally "e3tb" (based on irreducible representation) or "sktb" (Slater-Koster method).
+        device : Union[str, torch.device], default=torch.device("cpu")
+            The device that stores the mapping tensor (CPU/GPU).
+
+        Raises
+        ------
+        AssertionError
+            1) ``basis`` and ``chemical_symbol_to_type`` has different keys.
+            2) ``basis`` is given by ``string`` but method is not ``e3tb``.
+        ValueError
+            1) if ``method not in ["e3tb", "sktb"]``.
+            2) if any orbital found more than once in basis.
+            3) Invalid orbital types found.
+            4)
+
+
         """
 
         #TODO: use OrderedDict to fix the order of the dict used as index map
@@ -449,7 +734,7 @@ class OrbitalMapper(BondMapper):
         self.device = device
 
         if self.method not in ["e3tb", "sktb"]:
-            raise ValueError
+            raise ValueError("method must be e3tb or sktb!")
 
         if isinstance(self.basis[self.type_names[0]], str):
             assert method == "e3tb", "The method should be e3tb when the basis is given as string."
@@ -463,7 +748,8 @@ class OrbitalMapper(BondMapper):
             orbtype_count = {"s":0, "p":0, "d":0, "f":0, "g":0, "h":0}
 
             if not all_orb_types.issubset(set(orbtype_count.keys())):
-                raise ValueError(f"Invalid orbital types {all_orb_types} found in the basis. now only support {set(orbtype_count.keys())}.")
+                raise ValueError(f"Invalid orbital types {all_orb_types} found in the basis. now only support "
+                                 f"{set(orbtype_count.keys())}.")
 
             orbs = map(lambda bs: re.findall(r'[1-9]+[A-Za-z]', bs), self.basis.values())
             for ib in orbs:
@@ -476,7 +762,8 @@ class OrbitalMapper(BondMapper):
             for ib in self.basis.keys():
                 for io in ["s", "p", "d", "f", "g", "h"]:
                     if io in self.basis[ib]:
-                        basis[ib].extend([str(i)+io for i in range(1, int(re.findall(r'[1-9]+'+io, self.basis[ib])[0][0])+1)])
+                        basis[ib].extend([str(i)+io for i in
+                                          range(1, int(re.findall(r'[1-9]+'+io, self.basis[ib])[0][0])+1)])
             self.basis = basis
 
         elif isinstance(self.basis[self.type_names[0]], list):
@@ -495,50 +782,54 @@ class OrbitalMapper(BondMapper):
         for ko in orbtype_count.keys():
             assert ko in anglrMId
             full_basis_norb = full_basis_norb + (2 * anglrMId[ko] + 1) * orbtype_count[ko]
-        # self.full_basis_norb = 1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]
+        # self.full_basis_norb = 1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] +
+        # 7 * orbtype_count["f"]
         self.full_basis_norb = full_basis_norb
 
         if self.method == "e3tb":
             # The total number of matrix elements in the full basis self.full_basis_norb ** 2
-            # since the onsite block can not be reduced, orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"])
+            # since the onsite block can not be reduced, orbtype_count["s"] + 9 * orbtype_count["p"] +
+            #   25 * orbtype_count["d"] + 49 * orbtype_count["f"])
             # Then the reduce is to sum of full and onsite block and divide by 2
             total_onsite_block_elements = 0
             for ko in orbtype_count.keys():
                 total_onsite_block_elements += orbtype_count[ko] * (2 * anglrMId[ko] + 1)**2
             self.reduced_matrix_element = int((self.full_basis_norb ** 2 + total_onsite_block_elements)/2)
-            #self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
-            #                                        self.full_basis_norb ** 2)/2) # reduce onsite elements by blocks. we cannot reduce it by element since the rme will pass into CG basis to form the whole block
+            #self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"]
+            #                                        + 49 * orbtype_count["f"]) + self.full_basis_norb ** 2)/2)
+            # reduce onsite elements by blocks. we cannot reduce it by element since the rme will pass into CG basis
+            # to form the whole block
         else:
             # two factor: this outside one is the number of min(l,l')+1, ie. the number of sk integrals for each orbital pair.
             # the inside one the type of bond considering the interaction between different orbitals. s-p -> p-s. there are 2 types of bond. and 1 type of s-s.
             self.reduced_matrix_element = (
-                1 * orbtype_count["s"] * orbtype_count["s"] + \
-                2 * orbtype_count["s"] * orbtype_count["p"] + \
-                2 * orbtype_count["s"] * orbtype_count["d"] + \
-                2 * orbtype_count["s"] * orbtype_count["f"] + \
-                2 * orbtype_count["s"] * orbtype_count["g"] + \
+                1 * orbtype_count["s"] * orbtype_count["s"] +
+                2 * orbtype_count["s"] * orbtype_count["p"] +
+                2 * orbtype_count["s"] * orbtype_count["d"] +
+                2 * orbtype_count["s"] * orbtype_count["f"] +
+                2 * orbtype_count["s"] * orbtype_count["g"] +
                 2 * orbtype_count["s"] * orbtype_count["h"]
                 ) + \
             2 * (
-                1 * orbtype_count["p"] * orbtype_count["p"] + \
-                2 * orbtype_count["p"] * orbtype_count["d"] + \
-                2 * orbtype_count["p"] * orbtype_count["f"] + \
-                2 * orbtype_count["p"] * orbtype_count["g"] + \
+                1 * orbtype_count["p"] * orbtype_count["p"] +
+                2 * orbtype_count["p"] * orbtype_count["d"] +
+                2 * orbtype_count["p"] * orbtype_count["f"] +
+                2 * orbtype_count["p"] * orbtype_count["g"] +
                 2 * orbtype_count["p"] * orbtype_count["h"]
                 ) + \
             3 * (
-                1 * orbtype_count["d"] * orbtype_count["d"] + \
-                2 * orbtype_count["d"] * orbtype_count["f"] + \
-                2 * orbtype_count["d"] * orbtype_count["g"] + \
+                1 * orbtype_count["d"] * orbtype_count["d"] +
+                2 * orbtype_count["d"] * orbtype_count["f"] +
+                2 * orbtype_count["d"] * orbtype_count["g"] +
                 2 * orbtype_count["d"] * orbtype_count["h"]
                 ) + \
             4 * (
-                1 * orbtype_count["f"] * orbtype_count["f"] + \
-                2 * orbtype_count["f"] * orbtype_count["g"] + \
+                1 * orbtype_count["f"] * orbtype_count["f"] +
+                2 * orbtype_count["f"] * orbtype_count["g"] +
                 2 * orbtype_count["f"] * orbtype_count["h"]
                 ) + \
             5 * (
-                1 * orbtype_count["g"] * orbtype_count["g"] + \
+                1 * orbtype_count["g"] * orbtype_count["g"] +
                 2 * orbtype_count["g"] * orbtype_count["h"]
                 ) + \
             6 * (
@@ -547,12 +838,12 @@ class OrbitalMapper(BondMapper):
 
             self.reduced_matrix_element = self.reduced_matrix_element + orbtype_count["s"] + 2*orbtype_count["p"] + 3*orbtype_count["d"] + 4*orbtype_count["f"] + 5*orbtype_count["g"] + 6*orbtype_count["h"]
             self.reduced_matrix_element = int(self.reduced_matrix_element / 2)
-            self.n_onsite_Es = 0.5*(orbtype_count["s"]**2+orbtype_count["s"]) \
-                + 0.5 * (orbtype_count["p"]**2 + orbtype_count["p"]) \
-                + 0.5 * (orbtype_count["d"]**2 + orbtype_count["d"]) \
-                + 0.5 * (orbtype_count["f"]**2 + orbtype_count["f"]) \
-                + 0.5 * (orbtype_count["g"]**2 + orbtype_count["g"]) \
-                + 0.5 * (orbtype_count["h"]**2 + orbtype_count["h"])
+            self.n_onsite_Es = (0.5*(orbtype_count["s"]**2+orbtype_count["s"])
+                                + 0.5 * (orbtype_count["p"]**2 + orbtype_count["p"])
+                                + 0.5 * (orbtype_count["d"]**2 + orbtype_count["d"])
+                                + 0.5 * (orbtype_count["f"]**2 + orbtype_count["f"])
+                                + 0.5 * (orbtype_count["g"]**2 + orbtype_count["g"])
+                                + 0.5 * (orbtype_count["h"]**2 + orbtype_count["h"]))
             self.n_onsite_Es = int(self.n_onsite_Es)
             self.n_onsite_socLs = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"] + orbtype_count["g"] + orbtype_count["h"]
                   
@@ -644,11 +935,15 @@ class OrbitalMapper(BondMapper):
                         self.mask_to_ndiag[self.chemical_symbol_to_type[ib]][indices] = True
 
 
-    def get_orbpairtype_maps(self):
+    def get_orbpairtype_maps(self) -> Dict[str, slice]:
         """
         The function `get_orbpairtype_maps` creates a mapping of orbital pair types, such as s-s, "s-p",
         to slices based on the number of hops between them.
-        :return: a dictionary called `pairtype_map`.
+
+        Returns
+        -------
+        Dict[str, slice]
+            a dictionary called `pairtype_map`.
         """
         
         self.orbpairtype_maps = {}
@@ -673,7 +968,7 @@ class OrbitalMapper(BondMapper):
                         
         return self.orbpairtype_maps
     
-    def get_orbpair_maps(self):
+    def get_orbpair_maps(self) -> Dict[str, slice]:
 
         if hasattr(self, "orbpair_maps"):
             return self.orbpair_maps
@@ -704,7 +999,7 @@ class OrbitalMapper(BondMapper):
 
         return self.orbpair_maps
 
-    def get_orbpair_soc_maps(self):
+    def get_orbpair_soc_maps(self) -> Dict[str, slice]:
         if hasattr(self, "orbpairt_soc_maps"):
             return self.orbpair_soc_maps
         
@@ -732,7 +1027,7 @@ class OrbitalMapper(BondMapper):
         return self.orbpair_soc_maps
     
 
-    def get_skonsite_maps(self):
+    def get_skonsite_maps(self) -> Dict[str, slice]:
 
         assert self.method == "sktb", "Only sktb orbitalmapper have skonsite maps."
 
@@ -759,7 +1054,7 @@ class OrbitalMapper(BondMapper):
 
         return self.skonsite_maps
 
-    def get_skonsitetype_maps(self):
+    def get_skonsitetype_maps(self) -> Dict[str, slice]:
         self.skonsitetype_maps = {}
         ist = 0
 
@@ -775,7 +1070,7 @@ class OrbitalMapper(BondMapper):
 
         return self.skonsitetype_maps
     
-    def get_sksoctype_maps(self):
+    def get_sksoctype_maps(self) -> Dict[str, slice]:
         self.sksoctype_maps = {}
         ist = 0
 
@@ -792,7 +1087,7 @@ class OrbitalMapper(BondMapper):
         return self.sksoctype_maps
         # also need to think if we modify as this, how can we add extra basis when fitting.
 
-    def get_sksoc_maps(self):
+    def get_sksoc_maps(self) -> Dict[str, slice]:
 
         assert self.method == "sktb", "Only sktb orbitalmapper have sksoc maps."
 
@@ -813,7 +1108,7 @@ class OrbitalMapper(BondMapper):
         return self.sksoc_maps
 
 
-    def get_orbital_maps(self):
+    def get_orbital_maps(self) -> Dict[str, slice]:
         # simply get a 1-d slice for each atom species.
 
         self.orbital_maps = {}
@@ -838,7 +1133,24 @@ class OrbitalMapper(BondMapper):
         
         return self.orbital_maps
     
-    def get_irreps(self, no_parity=False):
+    def get_irreps(self, no_parity=False) -> o3.Irreps:
+        """Generates the corresponding irreducible representation (Irreps) of the orbital pair in the e3tb method.
+
+        1. Traverse the track type pairs (such as s-p) in orbpairtype_maps.
+        2. Calculate the combination of angular momenta of the orbital pair (l1, l2) to generate irreducible
+        representations (such as the "1o" representation of l=1).
+        3. Adjust the symmetry of the representation according to the no_parity option.
+
+        Parameters
+        ----------
+        no_parity : bool, default=False
+            Whether to ignore parity information.
+
+        Returns
+        -------
+        o3.Irreps
+            The irreducible representation object of the e3nn library describes the symmetry of orbital pairs.
+        """
         assert self.method == "e3tb", "Only support e3tb method for now."
 
         if hasattr(self, "orbpair_irreps"):
@@ -867,10 +1179,23 @@ class OrbitalMapper(BondMapper):
         self.orbpair_irreps = o3.Irreps(irs)
         return self.orbpair_irreps
 
-    def get_irreps_sim(self, no_parity=False):
+    def get_irreps_sim(self, no_parity=False) -> o3.Irreps:
+        """Returns a reduced and sorted irreducible representation.
+
+        Parameters
+        ----------
+        no_parity : bool, default=False
+            Whether to ignore parity information.
+
+        Returns
+        -------
+        o3.Irreps
+            The irreducible representation object of the e3nn library describes the symmetry of orbital pairs.
+        """
         return self.get_irreps(no_parity=no_parity).sort()[0].simplify()
     
-    def get_irreps_ess(self, no_parity=False):
+    def get_irreps_ess(self, no_parity=False) -> o3.Irreps:
+
         irp_e = []
         for mul, (l, p) in self.get_irreps_sim(no_parity=no_parity):
             if (-1)**l == p:

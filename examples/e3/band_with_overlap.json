@@ -18,7 +18,8 @@
         "nel_atom":{"Si":4},
         "E_fermi":0.0,
         "emin":-7,
-        "emax":18
+        "emax":18,
+		"override_overlap": "./data/Si64.0/overlaps.h5"
     },
     "device": "cuda"
 }

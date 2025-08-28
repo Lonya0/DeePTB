@@ -4,7 +4,7 @@ from dptb.nn.build import build_model
 from dptb.data import build_dataset
 
 # build the trained e3_band hamiltonian and overlap model
-model = build_model(checkpoint="./e3_silicon/checkpoint/nnenv.best.pth") 
+model = build_model(checkpoint="./ref_model/nnenv.ep1474.pth")
 
 # build the dataset from the model
 dataset = build_dataset.from_model(
@@ -13,7 +13,7 @@ dataset = build_dataset.from_model(
     prefix="Si64"
 )  
 
-jdata = j_loader("band.json")
+jdata = j_loader("band_with_overlap.json")
 kpath_kwargs = jdata["task_options"]
 
 bcal = Band(model=model,
